@@ -1,0 +1,146 @@
+================================================================================
+                    BLOG WRITING AGENT - IMPLEMENTATION OVERVIEW
+================================================================================
+
+1. PROJECT OVERVIEW
+-------------------
+The Blog Writing Agent (BWA) is an autonomous, multi-agent AI system built to 
+research, outline, write, and visually illustrate high-quality technical blog posts. 
+It uses a stateful graph architecture (LangGraph) powered by OpenAI GPT-4, Google Gemini, 
+Tavily Search API, and a Streamlit web user interface.
+
+Key Objective: Provide a fully automated workflow that takes a high-level topic, 
+determines if web research is required, orchestrates parallel writing workers, 
+synthesizes references with strict citation rules, generates custom technical 
+diagrams, and outputs complete Markdown articles with bundled images.
+
+
+2. ARCHITECTURE & GRAPH WORKFLOW
+--------------------------------
+The core execution engine is defined in `bwa_backend.py` using LangGraph `StateGraph`.
+
+Execution Flow:
+   [START] 
+      │
+      ▼
+   [Router Node] ─── (Needs Research?) ───► [Yes] ──► [Research Node (Tavily)]
+      │                                                     │
+      └───────────────────── [No] ──────────────────────────┘
+                                │
+                                ▼
+                       [Orchestrator Node]
+                                │
+                        (Fan-out / Parallel)
+                                │
+          ┌─────────────────────┼─────────────────────┐
+          ▼                     ▼                     ▼
+     [Worker 1]            [Worker 2]            [Worker N]
+          │                     │                     │
+          └─────────────────────┼─────────────────────┘
+                                │
+                                ▼
+                       [Reducer Subgraph]
+                                │
+               ┌────────────────┴────────────────┐
+               ▼                                 ▼
+       (merge_content) ──► (decide_images) ──► (generate_and_place_images)
+                                │
+                                ▼
+                             [END]
+
+Node Descriptions:
+
+1. Router Node (`router_node`):
+   - Analyzes the input topic and "as-of" date.
+   - Classifies post mode into one of three categories:
+     * `closed_book`: Evergreen concepts (no web research required).
+     * `hybrid`: Core concepts + latest tools/examples (broad search window).
+     * `open_book`: Time-sensitive news or weekly roundups (7-day search window).
+   - Generates 3–10 targeted web search queries if research is needed.
+
+2. Research Node (`research_node`):
+   - Executes web searches via Tavily Search API.
+   - Parses raw HTML/results into structured `EvidenceItem` objects.
+   - Deduplicates results by URL and filters by recency date cutoffs.
+
+3. Orchestrator Node (`orchestrator_node`):
+   - Acts as senior technical writer / editor.
+   - Creates a structured `Plan` containing 5–9 distinct tasks.
+   - Assigns word count goals, required tags, research needs, citation flags, and code block requirements for each task section.
+
+4. Worker Nodes (`worker_node`):
+   - Executed in parallel using LangGraph `Send` fan-out mechanism.
+   - Each worker focuses exclusively on writing ONE section based on its assigned task details.
+   - Adheres strictly to word count budgets, bullet point guidelines, and source link citations ([Source](URL)).
+
+5. Reducer Subgraph (`reducer_subgraph`):
+   - `merge_content`: Sorts section outputs by task ID and merges them into a cohesive Markdown document (`merged_md`).
+   - `decide_images`: Scans the merged text to identify up to 3 key places where diagrams or visuals add value. Inserts placeholders (`[[IMAGE_1]]`, etc.) and writes detailed image generation prompts.
+   - `generate_and_place_images`: Calls Google Gemini (`gemini-2.5-flash-image`) to generate diagrams, saves images into `images/` directory, updates image Markdown tags, and writes out the final `.md` file.
+
+
+3. DATA SCHEMAS & STATE MANAGEMENT
+----------------------------------
+All components communicate through a unified Pydantic schema and TypedDict state:
+
+- `State`: Graph state holding topic, mode, queries, evidence, plan, section outputs, merged markdown, and image specifications.
+- `Task`: Specifies section ID, title, goal, bullet points, word count, research flags, code flags.
+- `Plan`: Overall blog metadata (title, target audience, tone, kind, list of tasks).
+- `EvidenceItem`: Title, URL, publication date, source, and snippet.
+- `ImageSpec`: Placeholder string, output file path, alt text, caption, and prompt for Gemini image generation.
+
+
+4. FRONTEND USER INTERFACE (`bwa_frontend.py`)
+----------------------------------------------
+The web application is built with Streamlit and styled with a clean light theme.
+
+Key Features:
+- Topic Input & Control: Form to set blog topic and target date.
+- Real-time Graph Progress: Live execution step tracking showing current node, evidence counts, and generated tasks via `st.status`.
+- Tabbed Output Interface:
+  * 🧩 Plan: View structured post outline, task breakdown table, and metadata.
+  * 🔎 Evidence: Table of researched sources, URLs, and dates.
+  * 📝 Markdown Preview: Formatted article view with inline image rendering and download buttons (`.md` file and `.zip` bundle).
+  * 🖼️ Images: Visual gallery of generated diagrams with zip export.
+  * 🧾 Logs: Technical event stream log.
+- Past Blogs Loader: Sidebar selector to load previously generated Markdown files directly into the UI preview.
+
+
+5. PROJECT FILE STRUCTURE
+-------------------------
+blog-writing-agent/
+│
+├── bwa_backend.py          # LangGraph state machine, nodes, Pydantic models, Gemini & Tavily integration
+├── bwa_frontend.py         # Streamlit UI, stream handler, Markdown preview, ZIP bundler
+├── 1_bwa_basic.ipynb       # Notebook walkthrough: Basic agent setup
+├── 2_bwa_improved_prompting.ipynb # Notebook: Advanced prompt engineering
+├── 3_bwa_research.ipynb    # Notebook: Tavily search integration
+├── 4_bwa_research_fine_tuned.ipynb # Notebook: Fine-tuning research extraction
+├── 5_bwa_image.ipynb       # Notebook: Gemini image generation experiments
+├── .env                    # Secret keys (OPENAI_API_KEY, TAVILY_API_KEY, GOOGLE_API_KEY) - [GIT IGNORED]
+├── .gitignore              # Git ignore configuration including .env, my.env, __pycache__
+└── images/                 # Output directory for generated PNG/JPEG images
+
+
+6. ENVIRONMENT & CONFIGURATION
+------------------------------
+Required API Keys in `.env`:
+- `OPENAI_API_KEY`: Used for GPT-4 / ChatOpenAI reasoning, routing, planning, and section writing.
+- `TAVILY_API_KEY`: Used for real-time web search and evidence collection.
+- `GOOGLE_API_KEY`: Used for Gemini image generation (`gemini-2.5-flash-image`).
+
+How to Run:
+```bash
+# Navigate to project directory
+cd blog-writing-agent
+
+# Install dependencies (if not already installed)
+pip install langgraph langchain-openai langchain-community tavily-python google-genai streamlit pandas python-dotenv
+
+# Launch web application
+streamlit run bwa_frontend.py
+```
+
+================================================================================
+                              END OF OVERVIEW
+================================================================================
