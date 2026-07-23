@@ -8,9 +8,13 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional, List, Iterator, Tuple
+from dotenv import load_dotenv
+
 
 import pandas as pd
 import streamlit as st
+
+load_dotenv()
 
 # -----------------------------
 # Import your compiled LangGraph app
@@ -186,24 +190,161 @@ def extract_title_from_md(md: str, fallback: str) -> str:
 
 
 # -----------------------------
-# Streamlit UI
+# Streamlit UI & Aesthetics
 # -----------------------------
-st.set_page_config(page_title="LangGraph Blog Writer", layout="wide")
+st.set_page_config(page_title="Blog Writing Agent", page_icon="✍️", layout="wide")
 
-st.title("Blog Writing Agent")
+# Inject Custom CSS for Premium Light Design
+st.markdown("""
+<style>
+/* Global background and fonts */
+.stApp {
+    background-color: #ffffff;
+    color: #0f172a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Sidebar background and borders */
+[data-testid="stSidebar"] {
+    background-color: #f8fafc !important;
+    border-right: 1px solid #e2e8f0 !important;
+}
+
+/* Sidebar text adjustments */
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] .stMarkdown {
+    color: #334155 !important;
+}
+
+/* Clean Header Style */
+.header-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+    margin-top: 10px;
+}
+
+.main-title {
+    color: #0f172a !important;
+    font-size: 2.25rem !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+}
+
+.sub-title {
+    color: #64748b;
+    font-size: 1rem;
+    font-weight: 400;
+    margin-top: 4px;
+    margin-bottom: 2rem;
+}
+
+/* Premium Buttons */
+.stButton > button {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    border: 1px solid #2563eb !important;
+    border-radius: 6px;
+    padding: 0.5rem 1.25rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.stButton > button:hover {
+    background-color: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.1), 0 2px 4px -1px rgba(37, 99, 235, 0.06);
+}
+
+/* Secondary Button in Sidebar */
+[data-testid="stSidebar"] .stButton > button {
+    background-color: #ffffff !important;
+    color: #334155 !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
+[data-testid="stSidebar"] .stButton > button:hover {
+    background-color: #f1f5f9 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+
+/* Stylized Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    background-color: #f1f5f9;
+    padding: 6px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: transparent;
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    border: 1px solid #e2e8f0;
+}
+
+/* Radio buttons list text */
+[data-testid="stSidebar"] .stRadio div[role="radiogroup"] label {
+    font-size: 0.875rem !important;
+    line-height: 1.4 !important;
+    padding: 4px 0 !important;
+}
+
+/* Input Fields */
+div[data-baseweb="textarea"], div[data-baseweb="input"] {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+}
+
+/* Hide default streamlit header decoration */
+header[data-testid="stHeader"] {
+    background: transparent;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Professional Inline Logo
+st.markdown("""
+<div class="header-container">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;">
+        <path d="M12 20h9"></path>
+        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+    </svg>
+    <h1 class="main-title">Blog Writing Agent</h1>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown('<p class="sub-title">Your AI-powered content creation assistant.</p>', unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("Generate New Blog")
+    st.markdown("### Generate New Blog")
     topic = st.text_area(
         "Topic",
         height=120,
     )
     as_of = st.date_input("As-of date", value=date.today())
-    run_btn = st.button("🚀 Generate Blog", type="primary")
+    run_btn = st.button("Generate Blog", type="primary")
 
     # ✅ NEW: Past blogs list (keeps everything else intact)
     st.divider()
-    st.subheader("Past blogs")
+    st.markdown("### Past Blogs")
 
     past_files = list_past_blogs()
     if not past_files:
@@ -327,6 +468,7 @@ if run_btn:
 # Render last result (if any)
 out = st.session_state.get("last_out")
 if out:
+    st.divider()
     # --- Plan tab ---
     with tab_plan:
         st.subheader("Plan")
